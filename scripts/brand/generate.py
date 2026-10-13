@@ -87,6 +87,16 @@ def icon(background, left, right, border=None):
     return svg(512, 512, body + mark(left, right, x=100, y=126, size=260))
 
 
+def macos_icon():
+    """Apple's grid puts an 824 px squircle inside the 1024 px canvas, with room for a soft shadow."""
+    defs = (
+        '<defs><filter id="drop" x="-10%" y="-10%" width="120%" height="125%">'
+        '<feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0F172A" flood-opacity="0.28"/></filter></defs>'
+    )
+    tile = f'<rect x="100" y="100" width="824" height="824" rx="185" fill="{BLUE}" filter="url(#drop)"/>'
+    return svg(1024, 1024, defs + tile + mark("#BFDBFE", "#FFFFFF", x=286, y=324, size=376))
+
+
 SERIF = "Georgia, serif"
 SANS = "Inter, sans-serif"
 
@@ -217,6 +227,8 @@ with tempfile.TemporaryDirectory() as scratch:
 write("mark.svg", svg(120, 100, mark("#CBD5E1", INK)))
 write("logo.svg", logo(INK, "#CBD5E1", INK))
 write("logo-dark.svg", logo("#F1F5F9", "#64748B", "#F1F5F9"))
+macos_path = write("icon-macos.svg", macos_icon())
+png(macos_path, macos_path.replace(".svg", ".png"), 1024)
 for name, args in {
     "icon.svg": (BLUE, "#BFDBFE", "#FFFFFF"),
     "icon-dark.svg": (INK, "#94A3B8", "#E2E8F0"),
