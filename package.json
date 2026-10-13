@@ -1,0 +1,30 @@
+{
+  "name": "rosetta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Translate long EPUBs locally with Ollama",
+  "type": "module",
+  "bin": {
+    "rosetta": "./bin/rosetta"
+  },
+  "scripts": {
+    "rosetta": "node src/cli.ts",
+    "typecheck": "tsc",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "lint": "eslint .",
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.12",
+    "jszip": "^3.10.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "eslint": "^10.12.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}
