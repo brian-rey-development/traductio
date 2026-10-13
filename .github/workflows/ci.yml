@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  mac-app:
+    name: Build the Mac app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./macos/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Traductio-macOS
+          path: macos/build/*.zip
