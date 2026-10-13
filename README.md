@@ -1,6 +1,8 @@
 ![Traductio turns an English EPUB page into a Spanish one with italics and footnotes intact](assets/cover.png)
 
 <p align="center">
+  <a href="https://github.com/brian-rey-development/traductio/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/brian-rey-development/traductio/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/brian-rey-development/traductio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/brian-rey-development/traductio?color=2563EB"></a>
   <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-2563EB"></a>
   <img alt="macOS on Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-0F172A">
   <img alt="Runs on Ollama" src="https://img.shields.io/badge/runs%20on-Ollama-475569">
@@ -9,9 +11,11 @@
 
 <p align="center">
   <a href="#install">Install</a> ·
+  <a href="#mac-app">Mac app</a> ·
   <a href="#translate-your-first-book">First book</a> ·
   <a href="#commands-and-options">Options</a> ·
   <a href="#faq">FAQ</a> ·
+  <a href="#known-limitations">Limitations</a> ·
   <a href="#how-it-works">How it works</a>
 </p>
 
@@ -49,6 +53,12 @@ To install from a clone you already have, run `./scripts/setup.sh` inside it.
 </details>
 
 **Requirements.** A Mac with Apple Silicon and about 25 GB of free disk space. The default model is comfortable with 24 GB of memory, while a 16 GB Mac should add `--model translategemma:12b-it-q4_K_M` to its commands after running `ollama pull translategemma:12b-it-q4_K_M`.
+
+## Mac app
+
+If you would rather not use Terminal after installing, download the `Traductio-…-macOS.zip` file from the [latest release](https://github.com/brian-rey-development/traductio/releases/latest), unzip it and drag Traductio into Applications. Drop a book on the window, pick a language and either the whole book or one chapter, and press Translate. A progress bar shows how far along it is, Stop keeps everything translated so far, and when it finishes you can open the result straight in Apple Books.
+
+The app is a thin layer over the same `traductio` command, so it needs the one-line installer above, and it shows that command with a Copy button if anything is missing. It is signed for your Mac but not notarized by Apple, so the first launch is blocked. Open System Settings, go to Privacy & Security, and press **Open Anyway** next to the Traductio message. That is only needed once.
 
 ## Translate your first book
 
@@ -166,7 +176,19 @@ Ollama and Homebrew stay installed, since other tools may rely on them.
 
 </details>
 
+## Known limitations
+
+- **EPUB only.** Kindle, PDF and DRM-protected books need converting to a DRM-free EPUB first.
+- **Italics sometimes turn into quotation marks.** TranslateGemma tends to put book titles and stressed words in quotes. The report lists every paragraph where that happened.
+- **Endnote markers can land one sentence off** when the translation merges or splits sentences around them.
+- **Right-to-left languages are not finished.** Arabic, Hebrew and Persian text comes out translated, but the book keeps left-to-right direction, so some readers align it wrong.
+- **Image descriptions stay untranslated.** Text inside `alt` attributes is left as it was.
+- **It is slow.** A long book is an overnight job on Apple Silicon, and the setup script only targets macOS, although the CLI works with any OpenAI-compatible server through `--api`.
+- **The Mac app is not notarized**, so macOS asks you to allow it once.
+
 ## How it works
+
+The reasoning behind the main design choices, including what was tried and what each choice costs, is written up in the [decision records](docs/adr/README.md).
 
 <details>
 <summary>From EPUB to segments and back</summary>
@@ -195,7 +217,8 @@ Every final translation is checked for empty output, untranslated text and lengt
 ```sh
 pnpm check       # typecheck, lint, format check and tests
 pnpm format      # rewrite the tree with Prettier
-pnpm test        # unit tests plus end-to-end runs against a fake model server
+pnpm test        # unit, property and end-to-end tests against a fake model server
+./macos/build.sh # builds Traductio.app and the release zip into macos/build/
 ```
 
 Node 24 runs the TypeScript sources directly, so there is no build step. The source is organized in layers, and imports only ever point downward into the list below, which keeps the dependency graph acyclic and makes each folder readable on its own.
@@ -206,9 +229,10 @@ src/translate/   translation pipeline, prompts, checks, report and progress
 src/llm/         OpenAI-compatible client, completion cache and deduplication
 src/epub/        EPUB package handling, XHTML documents, segments and markup
 src/shared/      defaults, guards and the concurrency pool
+macos/           the SwiftUI app, which runs the CLI and reads its output
 ```
 
-Formatting is owned by Prettier and the lint gate runs the type-checked rule set, so floating promises, unsafe values from external payloads, functions over 20 lines and files over 250 lines all fail `pnpm check` instead of relying on review to catch them. The console API is only allowed inside `src/cli/` because that layer owns user-facing output, and every other layer reports through return values and thrown errors.
+Formatting is owned by Prettier and the lint gate runs the type-checked rule set, so floating promises, unsafe values from external payloads, functions over 20 lines and files over 250 lines all fail `pnpm check` instead of relying on review to catch them. The console API is only allowed inside `src/cli/` because that layer owns user-facing output, and every other layer reports through return values and thrown errors. The markup restore step, where most of the risk lives, also has property tests that throw thousands of randomly broken model answers at it and check that the result is always valid XHTML with every anchor kept exactly once.
 
 The logo, icons and cover in `assets/` are generated by `scripts/brand/generate.py`, which needs `rsvg-convert`, the Inter font and `pip install uharfbuzz fonttools`, so a color or tagline change is one edit and one run away.
 
