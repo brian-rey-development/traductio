@@ -13,11 +13,21 @@ BIN_DIR="$HOME/.local/bin"
 
 step() { printf '\n==> %s\n' "$1"; }
 
+node_is_current() {
+  command -v node >/dev/null && node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'
+}
+
 step "Checking prerequisites"
-command -v brew >/dev/null || { echo "Homebrew is required: https://brew.sh"; exit 1; }
-command -v pnpm >/dev/null || { echo "pnpm is required: brew install pnpm"; exit 1; }
-node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)' \
-  || { echo "Node 24 or newer is required"; exit 1; }
+[ "$(uname -s)" = "Darwin" ] || { echo "Traductio's setup targets macOS"; exit 1; }
+[ "$(uname -m)" = "arm64" ] || echo "Warning: Intel Macs work, but translation will be very slow without Apple Silicon"
+if ! command -v brew >/dev/null; then
+  step "Installing Homebrew"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
+fi
+node_is_current || { step "Installing Node"; brew install node; }
+node_is_current || { echo "Node 24 or newer is required, and the Homebrew one is older"; exit 1; }
+command -v pnpm >/dev/null || { step "Installing pnpm"; brew install pnpm; }
 
 step "Installing Ollama"
 command -v ollama >/dev/null || brew install ollama

@@ -14,7 +14,7 @@
     "cli"
   ],
   "license": "MIT",
-  "author": "brian-rey-development",
+  "author": "Brian Rey",
   "type": "module",
   "bin": {
     "traductio": "./bin/traductio"

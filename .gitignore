@@ -1,3 +1,5 @@
 node_modules/
 *.epub
 *.report.md
+.DS_Store
+__pycache__/
