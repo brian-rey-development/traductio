@@ -15,6 +15,7 @@
   <a href="#translate-your-first-book">First book</a> ·
   <a href="#commands-and-options">Options</a> ·
   <a href="#faq">FAQ</a> ·
+  <a href="#performance">Performance</a> ·
   <a href="#known-limitations">Limitations</a> ·
   <a href="#how-it-works">How it works</a>
 </p>
@@ -153,7 +154,7 @@ Traductio reads DRM-free EPUB files only. Convert other formats you own to EPUB 
 <details>
 <summary>How long does a book take, and can it go faster?</summary>
 
-Generation on Apple Silicon is limited by memory bandwidth, because every generated word streams the full model through the GPU. On an M5 Pro with 24 GB the default model translates 12 to 15 paragraphs a minute, so a 500-page book of about 4,900 paragraphs takes around six hours. The `translategemma:12b-it-q4_K_M` model reads 8 GB per step instead of 13 and runs about 1.5 times faster at a small cost in quality. Because `--api` accepts any OpenAI-compatible server, the same command can also run against LM Studio, `mlx_lm.server`, or vLLM on a rented GPU when a book has to be done in minutes.
+About six hours for a 500-page book on an M5 Pro, because every generated word has to stream the whole 13 GB model through memory. The [Performance](#performance) section below explains why Google Translate and DeepL are so much faster and lists the ways to speed Traductio up.
 
 </details>
 
@@ -175,6 +176,19 @@ Nothing is lost. Every translated paragraph is stored in `~/.cache/traductio/` t
 Ollama and Homebrew stay installed, since other tools may rely on them.
 
 </details>
+
+## Performance
+
+Google Translate and DeepL feel instant because thousands of users share datacenter GPUs that read memory about ten times faster than a Mac, running models that are smaller and built only for translation. Traductio runs a 12B model for one person on a laptop, where each generated word means reading the whole model from memory once, so a long book is an overnight job. A different kind of model would not fix this. Mamba-style architectures speed up long inputs, while the bottleneck here is the size of the weights.
+
+| To go faster                                     | Gain (estimate)  | Trade-off                                    |
+| ------------------------------------------------ | ---------------- | -------------------------------------------- |
+| `translategemma:12b-it-q4_K_M`, 8 parallel slots | about 2x         | Slightly lower quality, Ollama restart       |
+| TranslateGemma 4B                                | about 2.5 to 3x  | Noticeably weaker on literary prose          |
+| A rented H100 running vLLM, through `--api`      | 20x or more      | A few dollars per book, text leaves your Mac |
+| DeepL or Google Cloud (not built in)             | minutes per book | About $40 to $50 per long book, not private  |
+
+[docs/performance.md](docs/performance.md) walks through the arithmetic, how Google and DeepL work, non-transformer and diffusion models, and further reading. [Decision 0007](docs/adr/0007-stay-local-by-default.md) explains why Traductio stays local by default anyway.
 
 ## Known limitations
 

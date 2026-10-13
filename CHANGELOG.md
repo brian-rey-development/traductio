@@ -2,6 +2,13 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- A performance guide in `docs/performance.md` that explains why local translation takes hours, how Google Translate and DeepL get their speed, and which options would make Traductio faster, with further reading.
+- Decision record 0007 on keeping translation local by default.
+
 ## [0.1.0] - 2026-10-13
 
 The first public release.
