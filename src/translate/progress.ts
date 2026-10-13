@@ -1,7 +1,7 @@
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
-const NON_TTY_INTERVAL = 100;
+const DEFAULT_NON_TTY_INTERVAL = 100;
 
 type Progress = { readonly tick: () => void; readonly done: () => void };
 
@@ -21,9 +21,15 @@ const formatLine = ({ label, completed, total, rate }: Snapshot): string => {
   return `${label} ${completed}/${total} (${percent}%) ${rate.toFixed(2)} requests/s, ETA ${eta}`;
 };
 
+// Logs get a line every 100 segments, while the Mac app sets TRADUCTIO_PROGRESS_EVERY=1 to drive its progress bar.
+const nonTtyInterval = (): number => {
+  const requested = Number(process.env.TRADUCTIO_PROGRESS_EVERY);
+  return Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_NON_TTY_INTERVAL;
+};
+
 const writeLine = (line: string, completed: number, total: number): void => {
   if (process.stderr.isTTY) process.stderr.write(`\r\u001b[2K${line}`);
-  else if (completed % NON_TTY_INTERVAL === 0 || completed === total) process.stderr.write(`${line}\n`);
+  else if (completed % nonTtyInterval() === 0 || completed === total) process.stderr.write(`${line}\n`);
 };
 
 // The rate counts real model calls only, so segments served from the cache do not distort the ETA on resume.

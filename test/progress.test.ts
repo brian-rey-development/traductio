@@ -28,4 +28,20 @@ describe('createProgress', () => {
     assert.ok(output.includes('Translating 100/200 (50.0%) 0.00 requests/s, ETA --'), output);
     assert.ok(output.includes('Translating 200/200 (100.0%) 0.00 requests/s, ETA 0m00s'), output);
   });
+
+  it('prints every segment when TRADUCTIO_PROGRESS_EVERY asks for it', () => {
+    const wasTty = process.stderr.isTTY;
+    process.env.TRADUCTIO_PROGRESS_EVERY = '1';
+    process.stderr.isTTY = false;
+    try {
+      const output = capture(() => {
+        const progress = createProgress('Translating', 3, () => 0);
+        for (let tick = 0; tick < 3; tick += 1) progress.tick();
+      });
+      assert.equal(output.split('\n').filter(Boolean).length, 3, output);
+    } finally {
+      process.stderr.isTTY = wasTty;
+      delete process.env.TRADUCTIO_PROGRESS_EVERY;
+    }
+  });
 });
