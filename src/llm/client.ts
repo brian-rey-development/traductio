@@ -104,7 +104,7 @@ const listModelsOrExplain = async (client: LlmClient, baseUrl: string): Promise<
     return await client.listModels();
   } catch (error) {
     throw new Error(
-      `Cannot list models at ${baseUrl} (${errorMessage(error)}). Is Ollama running? Try: rosetta doctor`,
+      `Cannot list models at ${baseUrl} (${errorMessage(error)}). Is Ollama running? Try: traductio doctor`,
       {
         cause: error,
       },

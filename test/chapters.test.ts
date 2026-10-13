@@ -45,7 +45,7 @@ describe('spine chapter selection', () => {
   });
 
   it('numbers chapters through a real OPF and keeps the EPUB3 nav document out', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'rosetta-chapters-'));
+    const dir = await mkdtemp(join(tmpdir(), 'traductio-chapters-'));
     try {
       const path = join(dir, 'book.epub');
       await writeMultiChapterEpub(path, [xhtmlPage('<h1>Alpha</h1>'), xhtmlPage('<h1>Beta</h1>')]);

@@ -36,7 +36,7 @@ describe('translateBook', () => {
   });
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'rosetta-'));
+    dir = await mkdtemp(join(tmpdir(), 'traductio-'));
     process.env.XDG_CACHE_HOME = join(dir, 'cache');
     await writeFixtureEpub(join(dir, 'book.epub'), CHAPTER);
     settings = {

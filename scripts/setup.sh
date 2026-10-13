@@ -1,14 +1,14 @@
 #!/bin/sh
-# Installs Ollama as a tuned LaunchAgent, pulls the models and links the rosetta command.
+# Installs Ollama as a tuned LaunchAgent, pulls the models and links the traductio command.
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Model defaults mirror src/shared/defaults.ts.
-TRANSLATOR="${ROSETTA_MODEL:-translategemma:12b-it-q8_0}"
-REVIEWER="${ROSETTA_REVIEW_MODEL:-qwen3:8b}"
-LABEL="com.rosetta.ollama"
+TRANSLATOR="${TRADUCTIO_MODEL:-translategemma:12b-it-q8_0}"
+REVIEWER="${TRADUCTIO_REVIEW_MODEL:-qwen3:8b}"
+LABEL="com.traductio.ollama"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-LOG="$HOME/Library/Logs/rosetta-ollama.log"
+LOG="$HOME/Library/Logs/traductio-ollama.log"
 BIN_DIR="$HOME/.local/bin"
 
 step() { printf '\n==> %s\n' "$1"; }
@@ -66,15 +66,15 @@ step "Pulling models"
 ollama pull "$TRANSLATOR"
 ollama pull "$REVIEWER"
 
-step "Installing rosetta"
+step "Installing traductio"
 (cd "$ROOT" && pnpm install --frozen-lockfile)
 mkdir -p "$BIN_DIR"
-ln -sf "$ROOT/bin/rosetta" "$BIN_DIR/rosetta"
+ln -sf "$ROOT/bin/traductio" "$BIN_DIR/traductio"
 
 step "Verifying"
-"$ROOT/bin/rosetta" doctor
+"$ROOT/bin/traductio" doctor
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
-  *) echo "Add $BIN_DIR to your PATH to run rosetta from anywhere." ;;
+  *) echo "Add $BIN_DIR to your PATH to run traductio from anywhere." ;;
 esac
-printf "\nReady. Try: rosetta translate book.epub --to es --limit 30\n"
+printf "\nReady. Try: traductio translate book.epub --to es --limit 30\n"

@@ -1,14 +1,26 @@
 {
-  "name": "rosetta",
+  "name": "traductio",
   "version": "0.1.0",
   "private": true,
-  "description": "Translate long EPUBs locally with Ollama",
+  "description": "Translate whole EPUB books on your Mac, offline and free, with TranslateGemma and Ollama",
+  "keywords": [
+    "epub",
+    "translation",
+    "ebook",
+    "ollama",
+    "translategemma",
+    "llm",
+    "local-first",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "brian-rey-development",
   "type": "module",
   "bin": {
-    "rosetta": "./bin/rosetta"
+    "traductio": "./bin/traductio"
   },
   "scripts": {
-    "rosetta": "node src/cli/cli.ts",
+    "traductio": "node src/cli/cli.ts",
     "typecheck": "tsc",
     "test": "node --test \"test/**/*.test.ts\"",
     "lint": "eslint .",

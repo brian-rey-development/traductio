@@ -14,18 +14,18 @@ type OutputPaths = { readonly output: string; readonly reportPath: string };
 
 const EPUB_EXTENSION = /\.epub$/i;
 const ENV_DEFAULTS = {
-  apiUrl: process.env.ROSETTA_API_URL ?? DEFAULTS.apiUrl,
-  translator: process.env.ROSETTA_MODEL ?? DEFAULTS.translator,
-  reviewer: process.env.ROSETTA_REVIEW_MODEL ?? DEFAULTS.reviewer,
+  apiUrl: process.env.TRADUCTIO_API_URL ?? DEFAULTS.apiUrl,
+  translator: process.env.TRADUCTIO_MODEL ?? DEFAULTS.translator,
+  reviewer: process.env.TRADUCTIO_REVIEW_MODEL ?? DEFAULTS.reviewer,
 };
 
-const USAGE = `rosetta, local EPUB translation through Ollama
+const USAGE = `traductio, local EPUB translation through Ollama
 
 Usage:
-  rosetta translate <book.epub> --to <lang> [options]
-  rosetta glossary  <book.epub> [--out ${DEFAULTS.glossaryFile}] [--min ${DEFAULTS.glossaryMinOccurrences}]
-  rosetta inspect   <book.epub>
-  rosetta doctor
+  traductio translate <book.epub> --to <lang> [options]
+  traductio glossary  <book.epub> [--out ${DEFAULTS.glossaryFile}] [--min ${DEFAULTS.glossaryMinOccurrences}]
+  traductio inspect   <book.epub>
+  traductio doctor
 
 Translate options:
   --to <code>          target language as an ISO code such as es, fr or de (required)
@@ -138,13 +138,13 @@ const run = async (argv: readonly string[]): Promise<boolean> => {
     return true;
   }
   const command = COMMANDS[commandName];
-  if (!command) throw new Error(`Unknown command "${commandName}". Run rosetta --help`);
+  if (!command) throw new Error(`Unknown command "${commandName}". Run traductio --help`);
   return command(input, values);
 };
 
 try {
   process.exit((await run(process.argv.slice(2))) ? 0 : 1);
 } catch (error) {
-  console.error(`\nrosetta: ${errorMessage(error)}`);
+  console.error(`\ntraductio: ${errorMessage(error)}`);
   process.exit(1);
 }

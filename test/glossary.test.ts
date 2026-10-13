@@ -29,7 +29,7 @@ describe('readGlossary', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'rosetta-glossary-'));
+    dir = await mkdtemp(join(tmpdir(), 'traductio-glossary-'));
   });
 
   afterEach(async () => {

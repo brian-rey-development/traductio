@@ -33,10 +33,10 @@ const readEntry = async (path: string, entry: string): Promise<string> => {
   return (await zip.file(entry)?.async('string')) ?? '';
 };
 
-describe('rosetta cli parsing', () => {
+describe('traductio cli parsing', () => {
   it('runs through the installed bin launcher', async () => {
     const result = await new Promise<CliResult>((resolve) => {
-      execFile(join(ROOT, 'bin', 'rosetta'), ['--help'], { cwd: ROOT, timeout: TIMEOUT_MS }, (error, out, err) => {
+      execFile(join(ROOT, 'bin', 'traductio'), ['--help'], { cwd: ROOT, timeout: TIMEOUT_MS }, (error, out, err) => {
         resolve({ code: error === null ? 0 : 1, stdout: out, stderr: err });
       });
     });
@@ -49,14 +49,14 @@ describe('rosetta cli parsing', () => {
       const { code, stdout } = await runCli(args);
       assert.equal(code, 0);
       assert.ok(stdout.includes('Usage:'), stdout);
-      assert.ok(stdout.includes('rosetta translate <book.epub>'), stdout);
+      assert.ok(stdout.includes('traductio translate <book.epub>'), stdout);
     }
   });
 
   it('rejects an unknown command with a pointer to help', async () => {
     const { code, stderr } = await runCli(['bogus']);
     assert.equal(code, 1);
-    assert.ok(stderr.includes('Unknown command "bogus". Run rosetta --help'), stderr);
+    assert.ok(stderr.includes('Unknown command "bogus". Run traductio --help'), stderr);
   });
 
   it('requires an epub path before doing any work', async () => {
@@ -104,17 +104,17 @@ describe('rosetta cli parsing', () => {
   it('reports a missing input file instead of crashing with a stack trace', async () => {
     const { code, stderr } = await runCli(['inspect', 'missing.epub']);
     assert.equal(code, 1);
-    assert.ok(stderr.includes('rosetta:'), stderr);
+    assert.ok(stderr.includes('traductio:'), stderr);
     assert.ok(stderr.includes('ENOENT'), stderr);
   });
 });
 
-describe('rosetta cli offline commands', () => {
+describe('traductio cli offline commands', () => {
   let dir: string;
   let bookPath: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'rosetta-cli-'));
+    dir = await mkdtemp(join(tmpdir(), 'traductio-cli-'));
     bookPath = join(dir, 'book.epub');
     await writeFixtureEpub(bookPath, xhtmlPage('<h1>Chapter One</h1><p>Alice saw Alice in the Alice mirror.</p>'));
   });

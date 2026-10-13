@@ -12,7 +12,7 @@ describe('openCache', () => {
   let path: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'rosetta-cache-'));
+    dir = await mkdtemp(join(tmpdir(), 'traductio-cache-'));
     path = join(dir, 'nested', 'book.jsonl');
   });
 

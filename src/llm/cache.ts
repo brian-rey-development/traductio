@@ -13,7 +13,7 @@ export type Cache = {
 
 export const cachePathFor = (bookId: string): string => {
   const cacheRoot = process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache');
-  return join(cacheRoot, 'rosetta', `${bookId}.jsonl`);
+  return join(cacheRoot, 'traductio', `${bookId}.jsonl`);
 };
 
 export const cacheKey = (...parts: readonly string[]): string =>

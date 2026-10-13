@@ -134,7 +134,7 @@ describe('model installation checks', () => {
   it('explains how to recover when the server cannot be reached', async () => {
     await assert.rejects(
       assertModelsInstalled(stubClient(new Error('refused')), 'http://x/v1', ['a']),
-      /Cannot list models at http:\/\/x\/v1 \(refused\)\. Is Ollama running\? Try: rosetta doctor/,
+      /Cannot list models at http:\/\/x\/v1 \(refused\)\. Is Ollama running\? Try: traductio doctor/,
     );
   });
 });

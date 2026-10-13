@@ -41,7 +41,7 @@ const renderEntry = ({ segment, flags, translation, error }: FlaggedSegment, ind
 export const writeReport = async (path: string, flagged: readonly FlaggedSegment[]): Promise<void> => {
   const ordered = [...flagged].sort((a, b) => severityOf(a) - severityOf(b));
   const header = [
-    '# Rosetta review report',
+    '# Traductio review report',
     `${flagged.length} segments need a human look, most serious first. Each entry shows the source and then the translation.`,
   ].join('\n\n');
   await writeFile(path, `${[header, ...ordered.map(renderEntry)].join('\n\n')}\n`);

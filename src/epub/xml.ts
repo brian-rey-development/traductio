@@ -3,7 +3,7 @@ import { DOMParser, Node, XMLSerializer, type Document, type Element, type Text 
 type Mime = 'application/xhtml+xml' | 'application/xml';
 
 export const XHTML_MIME = 'application/xhtml+xml';
-const FRAGMENT_ROOT = 'rosetta-fragment';
+const FRAGMENT_ROOT = 'traductio-fragment';
 
 const throwOnError = (level: string, message: string): void => {
   if (level !== 'warning') throw new Error(message);
