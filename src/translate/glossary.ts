@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { isRecord } from './guards.ts';
+import { isRecord } from '../shared/guards.ts';
 import type { Glossary } from './prompts.ts';
 
 const CAPITALIZED_PHRASE = /\p{Lu}\p{Ll}+(?:\s\p{Lu}\p{Ll}+)*/gu;

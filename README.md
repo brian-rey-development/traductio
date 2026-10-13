@@ -13,11 +13,14 @@ The script installs Ollama with Homebrew and runs it as a LaunchAgent tuned for 
 ## Translating a book
 
 ```sh
-rosetta inspect book.epub                          # size, segments, token estimate
+rosetta inspect book.epub                          # size, segments, token estimate and numbered chapters
 rosetta translate book.epub --to es --limit 40     # try the first 40 paragraphs
+rosetta translate book.epub --to es --chapters 3   # one chapter now, ranges such as 3,5-7 also work
 rosetta translate book.epub --to es                # the whole book
 rosetta translate book.epub --to es --review       # add an editing pass with qwen3:8b
 ```
+
+Chapter numbers follow the spine order printed by `rosetta inspect`, and a chapter run still writes the complete book with every other chapter left in the source language while the reader menu is translated in full. Because the run happens on the same file, every translated paragraph lands in the same cache the eventual full run reads, so previewing a chapter costs nothing twice.
 
 The output lands next to the input as `book.es.epub`, with `book.es.report.md` beside it. Stopping with Ctrl-C loses nothing, because every completion is cached in `~/.cache/rosetta/` and re-running the same command skips straight to the first untranslated paragraph. Changing the model or the target language produces different prompts, so those runs are cached separately.
 
@@ -49,8 +52,23 @@ Generation on Apple Silicon is limited by memory bandwidth, so four requests dec
 ## Development
 
 ```sh
-pnpm check       # typecheck, lint (20-line functions, no any) and tests
+pnpm check       # typecheck, lint, format check and tests
+pnpm format      # rewrite the tree with Prettier
 pnpm test        # unit tests plus end-to-end runs against a fake model server
 ```
 
 Node 24 runs the TypeScript sources directly, so there is no build step.
+
+## Code layout
+
+The source is organized in layers, and imports only ever point downward into the list below, which keeps the dependency graph acyclic and makes each folder readable on its own.
+
+```text
+src/cli/         argument parsing, commands and console output
+src/translate/   translation pipeline, prompts, checks, report and progress
+src/llm/         OpenAI-compatible client, completion cache and deduplication
+src/epub/        EPUB package handling, XHTML documents, segments and markup
+src/shared/      defaults, guards and the concurrency pool
+```
+
+Formatting is owned by Prettier and the lint gate runs the type-checked rule set, so floating promises, unsafe values from external payloads, functions over 20 lines and files over 250 lines all fail `pnpm check` instead of relying on review to catch them. The console API is only allowed inside `src/cli/` because that layer owns user-facing output, the progress reporter in `src/translate/` writes its status line to stderr, and every other layer reports through return values and thrown errors.

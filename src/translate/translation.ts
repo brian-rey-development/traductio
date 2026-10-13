@@ -2,10 +2,10 @@ import type { Node } from '@xmldom/xmldom';
 import { checkTranslation, type Flag } from './checks.ts';
 import { chunkLimit, splitLongText } from './chunks.ts';
 import type { LanguagePair } from './languages.ts';
-import { hasPairedTags, isAnchor, restoreMarkup, stripPlaceholders } from './markup.ts';
+import { hasPairedTags, isAnchor, restoreMarkup, stripPlaceholders } from '../epub/markup.ts';
 import { cleanCompletion, reviewPrompt, translationPrompt, type Glossary } from './prompts.ts';
-import { replaceSegmentContent, type Segment } from './segments.ts';
-import { ownerDocumentOf, parseFragment } from './xml.ts';
+import { replaceSegmentContent, type Segment } from '../epub/segments.ts';
+import { ownerDocumentOf, parseFragment } from '../epub/xml.ts';
 
 export type Engine = {
   readonly complete: (prompt: string) => Promise<string>;

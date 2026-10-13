@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { restoreMarkup, toPlainText, type Tag } from '../src/markup.ts';
+import { restoreMarkup, toPlainText, type Tag } from '../src/epub/markup.ts';
 
 const tags = new Map<string, Tag>([
   ['1', { name: 'a', open: '<a id="ch1"/>', close: '' }],
@@ -31,11 +31,37 @@ describe('restoreMarkup', () => {
 
   it('turns Markdown emphasis back into the dropped emphasis tag', () => {
     const { markup, lostTags } = restoreMarkup('<1/>Un día *muy* largo<3/> y <4>audaz</4>', source, tags);
-    assert.deepEqual({ markup, lostTags }, { markup: '<a id="ch1"/>Un día <em>muy</em> largo<br/> y <b class="x">audaz</b>', lostTags: 0 });
+    assert.deepEqual(
+      { markup, lostTags },
+      { markup: '<a id="ch1"/>Un día <em>muy</em> largo<br/> y <b class="x">audaz</b>', lostTags: 0 },
+    );
   });
 
   it('counts paired tags the model dropped', () => {
     assert.equal(restoreMarkup('<1/>Un día largo<3/> y <4>audaz</4>', source, tags).lostTags, 1);
+  });
+
+  it('puts dropped endnote markers back after the sentence they followed', () => {
+    const noteTags = new Map<string, Tag>([
+      ['1', { name: 'sup', open: '<sup>', close: '</sup>' }],
+      ['2', { name: 'em', open: '<em>', close: '</em>' }],
+      ['3', { name: 'sup', open: '<sup>', close: '</sup>' }],
+    ]);
+    const noteSource = 'He was rich.<1> 1 </1>The <2>end</2>.<3> 2</3>';
+    assert.deepEqual(restoreMarkup('Era rico.\n\nEl <2>fin</2>.', noteSource, noteTags), {
+      markup: 'Era rico.<sup> 1 </sup> El <em>fin</em>.<sup> 2</sup>',
+      lostTags: 0,
+    });
+  });
+
+  it('does not treat abbreviations as sentence ends when placing endnote markers', () => {
+    const noteTags = new Map<string, Tag>([['1', { name: 'sup', open: '<sup>', close: '</sup>' }]]);
+    const noteSource = 'Dr. Smith met Mrs. Jones. They argued.<1>3</1> Then they left. Done.';
+    const translated = 'El doctor Smith conoció a la señora Jones. Discutieron. Luego se fueron. Fin.';
+    assert.equal(
+      restoreMarkup(translated, noteSource, noteTags).markup,
+      'El doctor Smith conoció a la señora Jones. Discutieron.<sup>3</sup> Luego se fueron. Fin.',
+    );
   });
 
   it('ignores unknown and duplicated placeholders', () => {

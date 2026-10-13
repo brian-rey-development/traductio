@@ -1,12 +1,12 @@
 import type { Document } from '@xmldom/xmldom';
-import { readEntry, setBookLanguage, setDocumentLanguage, type Book, type ContentFile } from './epub.ts';
-import { errorMessage } from './guards.ts';
+import { readEntry, setBookLanguage, setDocumentLanguage, type Book, type ContentFile } from './book.ts';
+import { errorMessage } from '../shared/guards.ts';
 import { findNcxSegments, findXhtmlSegments, type Segment } from './segments.ts';
 import { XHTML_MIME, parseXml, serialize } from './xml.ts';
 
 export type ContentDocument = ContentFile & { readonly doc: Document };
 export type SkippedFile = { readonly path: string; readonly reason: string };
-export type LoadedDocuments = { readonly documents: ContentDocument[]; readonly skipped: SkippedFile[] };
+type LoadedDocuments = { readonly documents: ContentDocument[]; readonly skipped: SkippedFile[] };
 
 const loadDocument = async (book: Book, file: ContentFile): Promise<ContentDocument | SkippedFile> => {
   try {
@@ -32,7 +32,9 @@ export const collectSegments = (documents: readonly ContentDocument[]): Segment[
 
 export const setLanguage = (book: Book, documents: readonly ContentDocument[], code: string): void => {
   setBookLanguage(book, code);
-  documents.forEach(({ doc }) => setDocumentLanguage(doc, code));
+  documents.forEach(({ doc }) => {
+    setDocumentLanguage(doc, code);
+  });
 };
 
 export const serializeDocuments = (documents: readonly ContentDocument[]): Map<string, string> =>

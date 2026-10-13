@@ -2,11 +2,12 @@ import { escapeText } from './xml.ts';
 
 export type Tag = { readonly name: string; readonly open: string; readonly close: string };
 export type TagMap = ReadonlyMap<string, Tag>;
-export type Restored = { readonly markup: string; readonly lostTags: number };
+type Restored = { readonly markup: string; readonly lostTags: number };
 
 type Token =
-  | { readonly kind: 'text'; readonly text: string }
-  | { readonly kind: 'open' | 'close' | 'empty'; readonly id: string };
+  { readonly kind: 'text'; readonly text: string } | { readonly kind: 'open' | 'close' | 'empty'; readonly id: string };
+
+type RenderedTokens = { readonly markup: string; readonly used: Set<string> };
 
 const PLACEHOLDER = /<\/?\d+\/?>/g;
 const EMPTY_PLACEHOLDER = /<\d+\/>/g;
@@ -17,6 +18,13 @@ const PLACEHOLDER_PARTS = /^<(\/?)(\d+)(\/?)>$/;
 const LINE_BREAK = /\s*\n\s*/;
 const MARKDOWN_EMPHASIS = /\*([^*\n]+)\*/g;
 const EMPHASIS_TAGS = new Set(['cite', 'em', 'i']);
+const NOTE_TAGS = new Set(['a', 'sup']);
+const NOTE_MARK = /^\s*[\d*†‡§]+\s*$/;
+const SENTENCE_END = /[.!?…]+(?:["'”’»)\]]|<\/\d+>)*(?=\s|<|$)/g;
+const ABBREVIATION = /(?:^|[\s(])(?:[A-Z]|Mr|Mrs|Ms|Dr|Jr|Sr|St|Sra|Srta|Dra)$/;
+const LETTER = /\p{L}/u;
+
+type Note = { readonly id: string; readonly mark: string; readonly at: number };
 
 export const normalizeSpace = (text: string): string => text.replace(ASCII_WHITESPACE, ' ').trim();
 
@@ -42,9 +50,7 @@ const toToken = (part: string): Token => {
 };
 
 const missingEmptyIds = (translated: string, tags: TagMap): string[] =>
-  [...tags]
-    .filter(([id, tag]) => isEmptyTag(tag) && !translated.includes(emptyPlaceholder(id)))
-    .map(([id]) => id);
+  [...tags].filter(([id, tag]) => isEmptyTag(tag) && !translated.includes(emptyPlaceholder(id))).map(([id]) => id);
 
 const lineBreaksToPlaceholders = (translated: string, tags: TagMap): string => {
   const missingBreaks = missingEmptyIds(translated, tags).filter((id) => tags.get(id)?.name === 'br');
@@ -58,9 +64,7 @@ const lineBreaksToPlaceholders = (translated: string, tags: TagMap): string => {
 };
 
 const missingPairedIds = (translated: string, tags: TagMap): string[] =>
-  [...tags]
-    .filter(([id, tag]) => !isEmptyTag(tag) && !translated.includes(`<${id}>`))
-    .map(([id]) => id);
+  [...tags].filter(([id, tag]) => !isEmptyTag(tag) && !translated.includes(`<${id}>`)).map(([id]) => id);
 
 // Models sometimes write *Emma* instead of keeping the placeholder, which would leave literal asterisks in the book.
 const markdownEmphasisToPlaceholders = (translated: string, source: string, tags: TagMap): string => {
@@ -73,7 +77,51 @@ const markdownEmphasisToPlaceholders = (translated: string, source: string, tags
   });
 };
 
-const renderTokens = (tokens: readonly Token[], tags: TagMap): { markup: string; used: Set<string> } => {
+const sentenceEnds = (text: string): number[] => {
+  const ends = [...text.matchAll(SENTENCE_END)]
+    .filter((match) => !ABBREVIATION.test(text.slice(0, match.index)))
+    .map((match) => match.index + match[0].length);
+  return LETTER.test(text.slice(ends.at(-1) ?? 0)) ? [...ends, text.length] : ends;
+};
+
+const noteMark = (source: string, id: string): string | undefined =>
+  new RegExp(`<${id}>([^<]*)</${id}>`).exec(source)?.[1];
+
+const missingNotes = (translated: string, source: string, tags: TagMap): Note[] =>
+  missingPairedIds(translated, tags).flatMap((id) => {
+    const mark = NOTE_TAGS.has(tags.get(id)?.name ?? '') ? noteMark(source, id) : undefined;
+    return mark !== undefined && NOTE_MARK.test(mark) ? [{ id, mark, at: source.indexOf(`<${id}>`) }] : [];
+  });
+
+const noteOffset = (note: Note, sourceEnds: readonly number[], translatedEnds: readonly number[]): number => {
+  const sentence = sourceEnds.filter((end) => end < note.at).length + 1;
+  const index = Math.round((sentence * translatedEnds.length) / Math.max(sourceEnds.length, 1));
+  return translatedEnds[Math.min(Math.max(index, 1), translatedEnds.length) - 1] ?? 0;
+};
+
+// Models drop endnote markers and often start a new paragraph where they were, so a dropped
+// marker goes back after the sentence that ended in the same relative place in the translation.
+const reinsertNotes = (translated: string, source: string, tags: TagMap): string => {
+  const notes = missingNotes(translated, source, tags);
+  if (notes.length === 0) return translated;
+  const sourceEnds = sentenceEnds(source);
+  const translatedEnds = sentenceEnds(translated);
+  return notes
+    .map((note) => ({ note, offset: noteOffset(note, sourceEnds, translatedEnds) }))
+    .reverse()
+    .reduce(
+      (text, { note, offset }) => `${text.slice(0, offset)}<${note.id}>${note.mark}</${note.id}>${text.slice(offset)}`,
+      translated,
+    );
+};
+
+const closingTags = (openTags: Tag[]): string =>
+  openTags
+    .reverse()
+    .map((tag) => tag.close)
+    .join('');
+
+const renderTokens = (tokens: readonly Token[], tags: TagMap): RenderedTokens => {
   const used = new Set<string>();
   const openTags: Tag[] = [];
   let markup = '';
@@ -89,7 +137,7 @@ const renderTokens = (tokens: readonly Token[], tags: TagMap): { markup: string;
       if (token.kind === 'open') openTags.push(tag);
     }
   }
-  return { markup: markup + openTags.reverse().map((tag) => tag.close).join(''), used };
+  return { markup: markup + closingTags(openTags), used };
 };
 
 const reinsertEmptyElements = (markup: string, source: string, tags: TagMap, used: Set<string>): string => {
@@ -103,7 +151,8 @@ const reinsertEmptyElements = (markup: string, source: string, tags: TagMap, use
 // Models often renumber or drop placeholders, so closing tags are matched by nesting order
 // rather than by id, which is safe because the source XHTML cannot contain overlapping tags.
 export const restoreMarkup = (translated: string, source: string, tags: TagMap): Restored => {
-  const normalized = markdownEmphasisToPlaceholders(lineBreaksToPlaceholders(translated, tags), source, tags);
+  const withBreaks = lineBreaksToPlaceholders(translated, tags);
+  const normalized = reinsertNotes(markdownEmphasisToPlaceholders(withBreaks, source, tags), source, tags);
   const tokens = normalized.split(PLACEHOLDER_SPLIT).filter(Boolean).map(toToken);
   const { markup, used } = renderTokens(tokens, tags);
   const lostTags = [...tags].filter(([id, tag]) => !isEmptyTag(tag) && !used.has(id)).length;

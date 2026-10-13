@@ -3,7 +3,7 @@ const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 const NON_TTY_INTERVAL = 100;
 
-export type Progress = { readonly tick: () => void; readonly done: () => void };
+type Progress = { readonly tick: () => void; readonly done: () => void };
 
 type Snapshot = { readonly label: string; readonly completed: number; readonly total: number; readonly rate: number };
 
@@ -17,7 +17,7 @@ const formatDuration = (seconds: number): string => {
 
 const formatLine = ({ label, completed, total, rate }: Snapshot): string => {
   const percent = ((completed / total) * 100).toFixed(1);
-  const eta = formatDuration((total - completed) / rate);
+  const eta = formatDuration(completed >= total ? 0 : (total - completed) / rate);
   return `${label} ${completed}/${total} (${percent}%) ${rate.toFixed(2)} requests/s, ETA ${eta}`;
 };
 
@@ -34,7 +34,8 @@ export const createProgress = (label: string, total: number, modelCalls: () => n
   return {
     tick: () => {
       completed += 1;
-      const rate = (modelCalls() - callsAtStart) / ((Date.now() - startedAt) / MS_PER_SECOND);
+      const elapsedSeconds = (Date.now() - startedAt) / MS_PER_SECOND;
+      const rate = elapsedSeconds > 0 ? (modelCalls() - callsAtStart) / elapsedSeconds : 0;
       writeLine(formatLine({ label, completed, total, rate }), completed, total);
     },
     done: () => {

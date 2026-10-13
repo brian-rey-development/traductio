@@ -1,5 +1,9 @@
 // Lanes pull from one shared iterator, so every item is processed exactly once, and the first error stops all lanes.
-export const runPool = async <T>(items: readonly T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> => {
+export const runPool = async <T>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> => {
   const queue = items.values();
   let stopped = false;
   const lane = async (): Promise<void> => {

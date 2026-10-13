@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { checkTranslation } from '../src/checks.ts';
-import { splitLongText } from '../src/chunks.ts';
+import { checkTranslation } from '../src/translate/checks.ts';
+import { splitLongText } from '../src/translate/chunks.ts';
 
 const SOURCE = 'It is a truth universally acknowledged, that a single man in possession of a good fortune.';
 const EN_ES = { from: 'en', to: 'es' };
@@ -20,7 +20,13 @@ describe('checkTranslation', () => {
   });
 
   it('expects much shorter output for dense scripts', () => {
-    assert.deepEqual(checkTranslation(SOURCE, '凡是有钱的单身汉，总想娶位太太，这已经成了一条举世公认的真理。', { from: 'en', to: 'zh' }), []);
+    assert.deepEqual(
+      checkTranslation(SOURCE, '凡是有钱的单身汉，总想娶位太太，这已经成了一条举世公认的真理。', {
+        from: 'en',
+        to: 'zh',
+      }),
+      [],
+    );
   });
 });
 

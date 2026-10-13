@@ -1,6 +1,6 @@
-import { cachePathFor, openCache } from './cache.ts';
-import { createCompleter, type Completer } from './completer.ts';
-import { DEFAULTS } from './defaults.ts';
+import { cachePathFor, openCache } from '../llm/cache.ts';
+import { createCompleter, type Completer } from '../llm/completer.ts';
+import { DEFAULTS } from '../shared/defaults.ts';
 import {
   collectSegments,
   loadDocuments,
@@ -8,17 +8,26 @@ import {
   setLanguage,
   type ContentDocument,
   type SkippedFile,
-} from './documents.ts';
-import { bookLanguage, loadBook, writeBook, type Book } from './epub.ts';
-import { errorMessage } from './guards.ts';
+} from '../epub/documents.ts';
+import { bookLanguage, loadBook, writeBook, type Book } from '../epub/book.ts';
+import { selectChapterPaths } from '../epub/chapters.ts';
+import { errorMessage } from '../shared/guards.ts';
 import { parseLanguage, type LanguagePair } from './languages.ts';
-import { assertModelsInstalled, createClient } from './llm.ts';
-import { runPool } from './pool.ts';
+import { assertModelsInstalled, createClient } from '../llm/client.ts';
+import { runPool } from '../shared/pool.ts';
 import { createProgress } from './progress.ts';
 import { adaptPromptToModel, type Glossary } from './prompts.ts';
 import { writeReport, type FlaggedSegment } from './report.ts';
-import type { Segment } from './segments.ts';
-import { applyDraft, draftFlags, draftSegment, reviewDraft, visibleText, type Draft, type Engine } from './translation.ts';
+import type { Segment } from '../epub/segments.ts';
+import {
+  applyDraft,
+  draftFlags,
+  draftSegment,
+  reviewDraft,
+  visibleText,
+  type Draft,
+  type Engine,
+} from './translation.ts';
 
 export type TranslateSettings = {
   readonly input: string;
@@ -31,6 +40,7 @@ export type TranslateSettings = {
   readonly glossary: Glossary;
   readonly concurrency: number;
   readonly limit: number | undefined;
+  readonly chapters: readonly number[] | undefined;
   readonly apiUrl: string;
 };
 
@@ -59,6 +69,9 @@ type PhaseResult<R> = { readonly results: ReadonlyMap<Segment, R>; readonly fail
 type PhaseOptions = { readonly label: string; readonly stopOnFailureStreak: boolean };
 type PhaseWork<R> = (segment: Segment) => Promise<R>;
 type Settled<R> = { readonly ok: true; readonly value: R } | { readonly ok: false; readonly error: unknown };
+type StreakTracker = (outcome: Settled<unknown>) => void;
+type ReviewedDrafts = { readonly drafts: Map<Segment, Draft>; readonly reviewFailures: number };
+type WrittenOutputs = { readonly flagged: FlaggedSegment[]; readonly failed: number };
 
 const MAX_FAILURE_STREAK = 5;
 const MS_PER_SECOND = 1000;
@@ -66,13 +79,16 @@ const TRANSLATE_PHASE: PhaseOptions = { label: 'Translating', stopOnFailureStrea
 const REVIEW_PHASE: PhaseOptions = { label: 'Reviewing', stopOnFailureStreak: false };
 
 const startRun = async (settings: TranslateSettings): Promise<Run> => {
-  const client = createClient(settings.apiUrl);
-  const models = settings.reviewer ? [settings.translator, settings.reviewer] : [settings.translator];
-  await assertModelsInstalled(client, settings.apiUrl, models);
   const book = await loadBook(settings.input);
   const from = parseLanguage(settings.from ?? bookLanguage(book) ?? DEFAULTS.sourceLanguage);
   const { documents, skipped } = await loadDocuments(book);
-  const segments = collectSegments(documents).slice(0, settings.limit);
+  const collected = collectSegments(documents);
+  const paths = settings.chapters ? selectChapterPaths(book.contents, settings.chapters) : undefined;
+  const inScope = paths ? collected.filter((segment) => paths.has(segment.path)) : collected;
+  const segments = inScope.slice(0, settings.limit);
+  const client = createClient(settings.apiUrl);
+  const models = settings.reviewer ? [settings.translator, settings.reviewer] : [settings.translator];
+  await assertModelsInstalled(client, settings.apiUrl, models);
   const completer = createCompleter(client, await openCache(cachePathFor(book.id)));
   return { settings, pair: { from, to: settings.to }, book, documents, skippedFiles: skipped, segments, completer };
 };
@@ -91,7 +107,7 @@ const settle = async <R>(task: () => Promise<R>): Promise<Settled<R>> => {
   }
 };
 
-const createFailureStreak = (enabled: boolean) => {
+const createFailureStreak = (enabled: boolean): StreakTracker => {
   let streak = 0;
   return (outcome: Settled<unknown>): void => {
     streak = outcome.ok ? 0 : streak + 1;
@@ -122,7 +138,11 @@ const runPhase = async <R>(
   return { results, failures };
 };
 
-const reviewDrafts = async (run: Run, reviewer: string, drafts: ReadonlyMap<Segment, Draft>) => {
+const reviewDrafts = async (
+  run: Run,
+  reviewer: string,
+  drafts: ReadonlyMap<Segment, Draft>,
+): Promise<ReviewedDrafts> => {
   const engine = engineFor(run, reviewer);
   const reviewDraftOf = async (segment: Segment): Promise<Draft> => {
     const draft = drafts.get(segment);
@@ -145,14 +165,27 @@ const applyDrafts = (drafts: ReadonlyMap<Segment, Draft>): Failures => {
   return failures;
 };
 
-const flagSegment = (run: Run, segment: Segment, draft: Draft | undefined, error: string | undefined) => {
+const flagSegment = (
+  run: Run,
+  segment: Segment,
+  draft: Draft | undefined,
+  error: string | undefined,
+): FlaggedSegment => {
   if (error !== undefined || draft === undefined) {
     return { segment, flags: ['failed'], translation: '', error } satisfies FlaggedSegment;
   }
-  return { segment, flags: draftFlags(segment, draft, run.pair), translation: visibleText(draft) } satisfies FlaggedSegment;
+  return {
+    segment,
+    flags: draftFlags(segment, draft, run.pair),
+    translation: visibleText(draft),
+  } satisfies FlaggedSegment;
 };
 
-const writeOutputs = async (run: Run, drafts: ReadonlyMap<Segment, Draft>, failures: Failures) => {
+const writeOutputs = async (
+  run: Run,
+  drafts: ReadonlyMap<Segment, Draft>,
+  failures: Failures,
+): Promise<WrittenOutputs> => {
   const allFailures = new Map([...failures, ...applyDrafts(drafts)]);
   setLanguage(run.book, run.documents, run.pair.to);
   await writeBook(run.book, serializeDocuments(run.documents), run.settings.output);

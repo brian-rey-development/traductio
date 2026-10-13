@@ -24,5 +24,7 @@ export const splitLongText = (text: string, language: string): string[] => {
   if (text.length <= limit) return [text];
   const segmenter = new Intl.Segmenter(language, { granularity: 'sentence' });
   const sentences = Array.from(segmenter.segment(text), (part) => part.segment);
-  return groupSentences(sentences, limit).map((group) => group.trim()).filter(Boolean);
+  return groupSentences(sentences, limit)
+    .map((group) => group.trim())
+    .filter(Boolean);
 };

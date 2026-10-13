@@ -1,5 +1,5 @@
 import { cacheKey, type Cache } from './cache.ts';
-import type { LlmClient } from './llm.ts';
+import type { LlmClient } from './client.ts';
 
 export type Completer = {
   readonly complete: (model: string, prompt: string) => Promise<string>;

@@ -20,8 +20,17 @@ export const translationPrompt = (text: string, { from, to }: LanguagePair): str
   ].join('\n');
 };
 
-const containsWord = (text: string, term: string): boolean =>
-  new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(REGEX_SPECIAL, '\\$&')}(?![\\p{L}\\p{N}])`, 'u').test(text);
+const wordPatterns = new Map<string, RegExp>();
+
+const wordPattern = (term: string): RegExp => {
+  const cached = wordPatterns.get(term);
+  if (cached) return cached;
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(REGEX_SPECIAL, '\\$&')}(?![\\p{L}\\p{N}])`, 'u');
+  wordPatterns.set(term, pattern);
+  return pattern;
+};
+
+const containsWord = (text: string, term: string): boolean => wordPattern(term).test(text);
 
 const glossaryLines = (source: string, glossary: Glossary): string[] =>
   Object.entries(glossary)

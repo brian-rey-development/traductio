@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findNcxSegments, findXhtmlSegments, replaceSegmentContent } from '../src/segments.ts';
-import { parseFragment, parseXml, serialize } from '../src/xml.ts';
+import { findNcxSegments, findXhtmlSegments, replaceSegmentContent } from '../src/epub/segments.ts';
+import { parseFragment, parseXml, serialize } from '../src/epub/xml.ts';
 import { parsePage } from './helpers.ts';
 
 const sources = (body: string): string[] => findXhtmlSegments('x', parsePage(body)).map((segment) => segment.encoded);
@@ -52,6 +52,9 @@ describe('findNcxSegments', () => {
       '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint><navLabel><text>Chapter One</text></navLabel></navPoint></navMap></ncx>',
       'application/xml',
     );
-    assert.deepEqual(findNcxSegments('toc.ncx', ncx).map((segment) => segment.plain), ['Chapter One']);
+    assert.deepEqual(
+      findNcxSegments('toc.ncx', ncx).map((segment) => segment.plain),
+      ['Chapter One'],
+    );
   });
 });

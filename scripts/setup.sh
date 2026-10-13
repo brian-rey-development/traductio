@@ -3,7 +3,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Model defaults mirror src/defaults.ts.
+# Model defaults mirror src/shared/defaults.ts.
 TRANSLATOR="${ROSETTA_MODEL:-translategemma:12b-it-q8_0}"
 REVIEWER="${ROSETTA_REVIEW_MODEL:-qwen3:8b}"
 LABEL="com.rosetta.ollama"

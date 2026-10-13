@@ -1,4 +1,4 @@
-import { errorMessage, isRecord } from './guards.ts';
+import { errorMessage, isRecord } from '../shared/guards.ts';
 
 const REQUEST_TIMEOUT_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 4;
@@ -14,6 +14,10 @@ export type LlmClient = {
   readonly listModels: () => Promise<string[]>;
 };
 
+export type ClientOptions = { readonly maxAttempts?: number; readonly retryDelayMs?: number };
+
+type RetryPolicy = { readonly maxAttempts: number; readonly retryDelayMs: number };
+
 class HttpError extends Error {
   readonly status: number;
   constructor(status: number, body: string) {
@@ -27,13 +31,13 @@ const isRetryable = (error: unknown): boolean =>
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const withRetry = async <T>(task: () => Promise<T>, attempt = 1): Promise<T> => {
+const withRetry = async <T>(task: () => Promise<T>, policy: RetryPolicy, attempt = 1): Promise<T> => {
   try {
     return await task();
   } catch (error) {
-    if (attempt >= MAX_ATTEMPTS || !isRetryable(error)) throw error;
-    await sleep(RETRY_BASE_MS * 2 ** (attempt - 1));
-    return withRetry(task, attempt + 1);
+    if (attempt >= policy.maxAttempts || !isRetryable(error)) throw error;
+    await sleep(policy.retryDelayMs * 2 ** (attempt - 1));
+    return withRetry(task, policy, attempt + 1);
   }
 };
 
@@ -44,7 +48,7 @@ const requestJson = async (url: string, init: RequestInit = {}): Promise<unknown
 };
 
 const parseCompletion = (body: unknown): Completion => {
-  const choice = isRecord(body) && Array.isArray(body.choices) ? body.choices[0] : undefined;
+  const choice = (isRecord(body) && Array.isArray(body.choices) ? body.choices[0] : undefined) as unknown;
   const message = isRecord(choice) ? choice.message : undefined;
   if (!isRecord(message) || typeof message.content !== 'string') {
     throw new Error('Unexpected chat completion response');
@@ -69,29 +73,54 @@ const chatRequest = (model: string, prompt: string, maxTokens: number): RequestI
   }),
 });
 
-export const createClient = (baseUrl: string): LlmClient => ({
-  complete: (model, prompt, maxTokens) =>
-    withRetry(async () => parseCompletion(await requestJson(`${baseUrl}/chat/completions`, chatRequest(model, prompt, maxTokens)))),
-  listModels: async () => parseModelIds(await requestJson(`${baseUrl}/models`)),
-});
+const policyOf = (options: ClientOptions): RetryPolicy => {
+  const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
+  const retryDelayMs = options.retryDelayMs ?? RETRY_BASE_MS;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new RangeError('maxAttempts must be a positive integer');
+  if (!Number.isFinite(retryDelayMs) || retryDelayMs < 0) {
+    throw new RangeError('retryDelayMs must be a finite number of milliseconds');
+  }
+  return { maxAttempts, retryDelayMs };
+};
+
+export const createClient = (baseUrl: string, options: ClientOptions = {}): LlmClient => {
+  const policy = policyOf(options);
+  return {
+    complete: (model, prompt, maxTokens) =>
+      withRetry(
+        async () =>
+          parseCompletion(await requestJson(`${baseUrl}/chat/completions`, chatRequest(model, prompt, maxTokens))),
+        policy,
+      ),
+    listModels: async () => parseModelIds(await requestJson(`${baseUrl}/models`)),
+  };
+};
 
 export const isModelInstalled = (installed: readonly string[], model: string): boolean =>
   installed.includes(model) || installed.includes(`${model}:latest`);
 
-export const listModelsOrExplain = async (client: LlmClient, baseUrl: string): Promise<string[]> => {
+const listModelsOrExplain = async (client: LlmClient, baseUrl: string): Promise<string[]> => {
   try {
     return await client.listModels();
   } catch (error) {
-    throw new Error(`Cannot list models at ${baseUrl} (${errorMessage(error)}). Is Ollama running? Try: rosetta doctor`, {
-      cause: error,
-    });
+    throw new Error(
+      `Cannot list models at ${baseUrl} (${errorMessage(error)}). Is Ollama running? Try: rosetta doctor`,
+      {
+        cause: error,
+      },
+    );
   }
 };
 
-export const assertModelsInstalled = async (client: LlmClient, baseUrl: string, models: readonly string[]): Promise<void> => {
+export const assertModelsInstalled = async (
+  client: LlmClient,
+  baseUrl: string,
+  models: readonly string[],
+): Promise<void> => {
   const installed = await listModelsOrExplain(client, baseUrl);
   const missing = models.filter((model) => !isModelInstalled(installed, model));
-  if (missing.length > 0) {
-    throw new Error(`Model not installed: ${missing.join(', ')}. Install it with: ollama pull ${missing[0]}`);
+  const [firstMissing] = missing;
+  if (firstMissing !== undefined) {
+    throw new Error(`Model not installed: ${missing.join(', ')}. Install it with: ollama pull ${firstMissing}`);
   }
 };

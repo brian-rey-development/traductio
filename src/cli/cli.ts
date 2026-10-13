@@ -1,31 +1,19 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { inspectBook, runDoctor, writeGlossary } from './commands.ts';
-import { DEFAULTS } from './defaults.ts';
-import { errorMessage } from './guards.ts';
-import { readGlossary } from './glossary.ts';
-import { parseLanguage } from './languages.ts';
-import { translateBook, type TranslateSettings, type TranslateSummary } from './pipeline.ts';
+import { parseChapterSelection } from '../epub/chapters.ts';
+import { DEFAULTS } from '../shared/defaults.ts';
+import { errorMessage } from '../shared/guards.ts';
+import { readGlossary } from '../translate/glossary.ts';
+import { parseLanguage } from '../translate/languages.ts';
+import { translateBook, type TranslateSettings, type TranslateSummary } from '../translate/pipeline.ts';
 
-type CliValues = {
-  readonly to?: string | undefined;
-  readonly from?: string | undefined;
-  readonly out?: string | undefined;
-  readonly model: string;
-  readonly review: boolean;
-  readonly 'review-model': string;
-  readonly glossary?: string | undefined;
-  readonly concurrency: string;
-  readonly limit?: string | undefined;
-  readonly api: string;
-  readonly min: string;
-  readonly help: boolean;
-};
-
+type CliValues = ReturnType<typeof parseCli>['values'];
 type Command = (input: string | undefined, values: CliValues) => Promise<boolean>;
+type OutputPaths = { readonly output: string; readonly reportPath: string };
 
 const EPUB_EXTENSION = /\.epub$/i;
-const SETTINGS = {
+const ENV_DEFAULTS = {
   apiUrl: process.env.ROSETTA_API_URL ?? DEFAULTS.apiUrl,
   translator: process.env.ROSETTA_MODEL ?? DEFAULTS.translator,
   reviewer: process.env.ROSETTA_REVIEW_MODEL ?? DEFAULTS.reviewer,
@@ -43,13 +31,14 @@ Translate options:
   --to <code>          target language as an ISO code such as es, fr or de (required)
   --from <code>        source language (default: the book metadata, else ${DEFAULTS.sourceLanguage})
   --out <path>         output .epub (default: <book>.<to>.epub)
-  --model <name>       translation model (default: ${SETTINGS.translator})
+  --model <name>       translation model (default: ${ENV_DEFAULTS.translator})
   --review             add a second pass where a general model edits the draft
-  --review-model <m>   model for --review (default: ${SETTINGS.reviewer})
+  --review-model <m>   model for --review (default: ${ENV_DEFAULTS.reviewer})
   --glossary <file>    JSON of fixed term translations, applied by --review
   --concurrency <n>    parallel requests (default: ${DEFAULTS.concurrency})
   --limit <n>          only translate the first n segments, for quick tests
-  --api <url>          OpenAI-compatible server (default: ${SETTINGS.apiUrl})
+  --chapters <list>    only translate these chapters by spine number, given as 3 or 3,5-7 (inspect lists them)
+  --api <url>          OpenAI-compatible server (default: ${ENV_DEFAULTS.apiUrl})
 
 Every completion is cached per book, so re-running the same command resumes.`;
 
@@ -57,13 +46,14 @@ const OPTIONS = {
   to: { type: 'string' },
   from: { type: 'string' },
   out: { type: 'string' },
-  model: { type: 'string', default: SETTINGS.translator },
+  model: { type: 'string', default: ENV_DEFAULTS.translator },
   review: { type: 'boolean', default: false },
-  'review-model': { type: 'string', default: SETTINGS.reviewer },
+  'review-model': { type: 'string', default: ENV_DEFAULTS.reviewer },
   glossary: { type: 'string' },
   concurrency: { type: 'string', default: String(DEFAULTS.concurrency) },
   limit: { type: 'string' },
-  api: { type: 'string', default: SETTINGS.apiUrl },
+  chapters: { type: 'string' },
+  api: { type: 'string', default: ENV_DEFAULTS.apiUrl },
   min: { type: 'string', default: String(DEFAULTS.glossaryMinOccurrences) },
   help: { type: 'boolean', short: 'h', default: false },
 } as const;
@@ -79,7 +69,7 @@ const requireEpub = (input: string | undefined): string => {
   return input;
 };
 
-const outputPaths = (input: string, out: string | undefined, to: string) => {
+const outputPaths = (input: string, out: string | undefined, to: string): OutputPaths => {
   const output = out ?? input.replace(EPUB_EXTENSION, `.${to}.epub`);
   if (!EPUB_EXTENSION.test(output)) throw new Error('--out must end in .epub');
   if (resolve(output) === resolve(input)) throw new Error('--out must not overwrite the source book');
@@ -99,15 +89,21 @@ const buildSettings = async (input: string, values: CliValues): Promise<Translat
     glossary: await readGlossary(values.glossary),
     concurrency: parsePositiveInt('concurrency', values.concurrency),
     limit: values.limit === undefined ? undefined : parsePositiveInt('limit', values.limit),
+    chapters: values.chapters === undefined ? undefined : parseChapterSelection(values.chapters),
     apiUrl: values.api,
   };
 };
 
 const printSummary = (settings: TranslateSettings, summary: TranslateSummary): void => {
   const minutes = (summary.seconds / 60).toFixed(1);
-  console.log(`Done in ${minutes} min, ${summary.segments} segments, ${summary.pair.from} → ${summary.pair.to}: ${settings.output}`);
-  summary.skippedFiles.forEach(({ path, reason }) => console.log(`Skipped ${path}: ${reason}`));
-  if (summary.reviewFailures > 0) console.log(`${summary.reviewFailures} reviews failed, those segments keep their first draft.`);
+  console.log(
+    `Done in ${minutes} min, ${summary.segments} segments, ${summary.pair.from} → ${summary.pair.to}: ${settings.output}`,
+  );
+  summary.skippedFiles.forEach(({ path, reason }) => {
+    console.log(`Skipped ${path}: ${reason}`);
+  });
+  if (summary.reviewFailures > 0)
+    console.log(`${summary.reviewFailures} reviews failed, those segments keep their first draft.`);
   if (summary.failed > 0) console.log(`${summary.failed} segments kept their original text. Re-run to retry them.`);
   if (summary.flagged > 0) console.log(`${summary.flagged} segments flagged for review: ${settings.reportPath}`);
 };
@@ -116,7 +112,8 @@ const COMMANDS: Readonly<Record<string, Command>> = {
   translate: async (input, values) => {
     const settings = await buildSettings(requireEpub(input), values);
     const review = settings.reviewer ? `, reviewed by ${settings.reviewer}` : '';
-    console.log(`Translating with ${settings.translator}${review}`);
+    const scope = settings.chapters ? `, chapters ${settings.chapters.join(', ')}` : '';
+    console.log(`Translating with ${settings.translator}${review}${scope}`);
     printSummary(settings, await translateBook(settings));
     return true;
   },
@@ -131,8 +128,10 @@ const COMMANDS: Readonly<Record<string, Command>> = {
   doctor: (_input, values) => runDoctor(values.api, values.model, values['review-model']),
 };
 
+const parseCli = (argv: readonly string[]) => parseArgs({ args: [...argv], options: OPTIONS, allowPositionals: true });
+
 const run = async (argv: readonly string[]): Promise<boolean> => {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, allowPositionals: true });
+  const { values, positionals } = parseCli(argv);
   const [commandName, input] = positionals;
   if (values.help || !commandName) {
     console.log(USAGE);
@@ -143,10 +142,9 @@ const run = async (argv: readonly string[]): Promise<boolean> => {
   return command(input, values);
 };
 
-run(process.argv.slice(2)).then(
-  (succeeded) => process.exit(succeeded ? 0 : 1),
-  (error: unknown) => {
-    console.error(`\nrosetta: ${errorMessage(error)}`);
-    process.exit(1);
-  },
-);
+try {
+  process.exit((await run(process.argv.slice(2))) ? 0 : 1);
+} catch (error) {
+  console.error(`\nrosetta: ${errorMessage(error)}`);
+  process.exit(1);
+}

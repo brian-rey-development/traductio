@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import type { Document, Element } from '@xmldom/xmldom';
 import { XHTML_MIME, descendants, parseXml, serialize } from './xml.ts';
 
-export type ContentKind = 'xhtml' | 'ncx';
+type ContentKind = 'xhtml' | 'nav' | 'ncx';
 export type ContentFile = { readonly path: string; readonly kind: ContentKind };
 
 export type Book = {
@@ -48,8 +48,7 @@ const decodeHref = (href: string): string => {
 const resolveHref = (opfPath: string, item: Element): string =>
   posix.normalize(posix.join(posix.dirname(opfPath), decodeHref(item.getAttribute('href') ?? '')));
 
-const isNavDocument = (item: Element): boolean =>
-  (item.getAttribute('properties') ?? '').split(/\s+/).includes('nav');
+const isNavDocument = (item: Element): boolean => (item.getAttribute('properties') ?? '').split(/\s+/).includes('nav');
 
 const listContents = (opf: Document, opfPath: string): ContentFile[] => {
   const items = byLocalName(opf, 'item');
@@ -59,7 +58,10 @@ const listContents = (opf: Document, opfPath: string): ContentFile[] => {
   const xhtml = [...spine, ...nav].filter((item) => item.getAttribute('media-type') === XHTML_MIME);
   const ncx = items.filter((item) => item.getAttribute('media-type') === NCX_MIME);
   return [
-    ...xhtml.map((item) => ({ path: resolveHref(opfPath, item), kind: 'xhtml' as const })),
+    ...xhtml.map((item) => ({
+      path: resolveHref(opfPath, item),
+      kind: isNavDocument(item) ? ('nav' as const) : ('xhtml' as const),
+    })),
     ...ncx.map((item) => ({ path: resolveHref(opfPath, item), kind: 'ncx' as const })),
   ];
 };
@@ -76,10 +78,11 @@ export const loadBook = async (file: string): Promise<Book> => {
 export const bookLanguage = (book: Book): string | undefined =>
   byLocalName(book.opf, 'language')[0]?.textContent?.trim().split('-')[0] || undefined;
 
-export const setBookLanguage = (book: Book, code: string): void =>
+export const setBookLanguage = (book: Book, code: string): void => {
   byLocalName(book.opf, 'language').forEach((element) => {
     element.textContent = code;
   });
+};
 
 export const setDocumentLanguage = (doc: Document, code: string): void => {
   const root = doc.documentElement;
@@ -92,7 +95,11 @@ const copyEntry = async (source: JSZip, target: JSZip, path: string): Promise<vo
   if (entry && !entry.dir) target.file(path, await entry.async('uint8array'));
 };
 
-export const writeBook = async (book: Book, replacements: ReadonlyMap<string, string>, outPath: string): Promise<void> => {
+export const writeBook = async (
+  book: Book,
+  replacements: ReadonlyMap<string, string>,
+  outPath: string,
+): Promise<void> => {
   const out = new JSZip();
   out.file(MIMETYPE_PATH, 'application/epub+zip', { compression: 'STORE' });
   const paths = Object.keys(book.zip.files).filter((path) => path !== MIMETYPE_PATH);

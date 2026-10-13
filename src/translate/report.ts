@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import type { Flag } from './checks.ts';
-import type { Segment } from './segments.ts';
+import type { Segment } from '../epub/segments.ts';
 
 export type FlaggedSegment = {
   readonly segment: Segment;
@@ -21,9 +21,13 @@ const FLAG_DESCRIPTIONS: Readonly<Record<Flag, string>> = {
 const FLAG_SEVERITY: readonly Flag[] = ['failed', 'empty', 'too-short', 'too-long', 'untranslated', 'markup-lost'];
 
 const severityOf = (entry: FlaggedSegment): number =>
-  Math.min(...entry.flags.map((flag) => FLAG_SEVERITY.indexOf(flag)));
+  entry.flags.length === 0 ? FLAG_SEVERITY.length : Math.min(...entry.flags.map((flag) => FLAG_SEVERITY.indexOf(flag)));
 
-const quote = (text: string): string => text.split('\n').map((line) => `> ${line}`).join('\n');
+const quote = (text: string): string =>
+  text
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
 
 const renderEntry = ({ segment, flags, translation, error }: FlaggedSegment, index: number): string =>
   [
